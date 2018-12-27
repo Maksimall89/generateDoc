@@ -1,0 +1,60 @@
+{
+  "projects": [
+    {
+      "name": "S",
+      "key": "eyJrIjoiSGE0TWxOTlpQcWdWRHJBQ0FBbjQxVkdaS2FOTzlzR0oiLCJuIjoidGVzdCIsImlkIjoxfQ==",
+      "configs": [
+        {
+          "nameHeading" : "графики",
+          "namePanelsId": "idle time",
+          "describePanel": "grrsdfsdfklklewrhkldfkdfkjldjklsdjklsdf",
+          "panelsId": [
+            "1"
+          ],
+          "width": "10",
+          "height": "101",
+          "dashboward": "http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy"
+        },
+        {
+          "nameHeading" : "графики",
+          "namePanelsId": "time",
+          "describePanel": "grrsdfsdfklklewrhkldfkdfkjldjklsdjklsdf",
+          "panelsId": [
+            "2",
+            "3"
+          ],
+          "width": "",
+          "height": "",
+          "dashboward": "http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy"
+        }
+      ]
+    },
+    {
+      "name": "P",
+      "key": "eyJrIjoiSGE0TWxOTlpQcWdWRHJBQ0FBbjQxVkdaS2FOTzlzR0oiLCJuIjoidGVzdCIsImlkIjoxfQ==",
+      "configs": [
+        {
+          "nameHeading" : "графики",
+          "namePanelsId": "idle time",
+          "describePanel": "grrsdfsdfklklewrhkldfkdfkjldjklsdjklsdf",
+          "panelsId": [
+            "5"
+          ],
+          "width": "3",
+          "height": "3",
+          "dashboward": "https://play.grafana.org/d/000000012/grafana-play-home"
+        },
+        {
+          "nameHeading" : "графики",
+          "namePanelsId": "time",
+          "describePanel": "grrsdfsdfklklewrhkldfkdfkjldjklsdjklsdf",
+          "panelsId": [
+            "40",
+            "60"
+          ],
+          "dashboward": "https://play.grafana.org/d/000000012/grafana-play-home"
+        }
+      ]
+    }
+  ]
+}
