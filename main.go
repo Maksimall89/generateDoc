@@ -1,9 +1,10 @@
 package main
 
 import (
-	"baliance.com/gooxml/common"
-	"baliance.com/gooxml/document"
-	"baliance.com/gooxml/measurement"
+	"github.com/unidoc/unioffice/common"
+	"github.com/unidoc/unioffice/document"
+	"github.com/unidoc/unioffice/measurement"
+
 	"log"
 	"path/filepath"
 
