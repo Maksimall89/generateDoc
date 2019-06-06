@@ -22,5 +22,5 @@ Compile:
 
 Start:
 
-`execute generateDoc.exe`
+execute `generateDoc.exe` and open
 `http://127.0.0.1:9005/`
