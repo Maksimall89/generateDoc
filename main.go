@@ -1,25 +1,39 @@
 package main
 
 import (
-	"github.com/unidoc/unioffice/common"
-	"github.com/unidoc/unioffice/document"
-	"github.com/unidoc/unioffice/measurement"
-
-	"log"
-	"path/filepath"
-
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/unidoc/unioffice/common"
+	"github.com/unidoc/unioffice/document"
+	"github.com/unidoc/unioffice/measurement"
 	"html/template"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
+
+type grafana struct {
+	PanelsID    []string `json:"panelsId"`              //Required field, panel id as int
+	Hostname    string   `json:"hostname,omitempty"`    //Optional field if assigned at configs, example "http://127.0.0.1:3000"
+	Dashboard   string   `json:"dashboard,omitempty"`   //Optional field if assigned at configs, path to dashboard, example "/d/XZsIP9qik/test"
+	Width       int      `json:"width,omitempty"`       //Optional field if assigned at configs
+	Height      int      `json:"height,omitempty"`      //Optional field if assigned at configs
+	Description string   `json:"description,omitempty"` //Optional field if assigned at configs
+	DescStyle   string   `json:"descStyle,omitempty"`   //Optional field if assigned at configs
+}
+
+type text struct {
+	Content string `json:"content"`         //Required field
+	Style   string `json:"style,omitempty"` //Optional field if assigned at configs
+}
 
 type configFile struct {
 	Times    string
@@ -27,15 +41,14 @@ type configFile struct {
 	Projects []struct {
 		Name    string `json:"name"`
 		Key     string `json:"key"`
-		Configs []struct {
-			NameHeading   string   `json:"nameHeading"`
-			NamePanelsID  string   `json:"namePanelsId"`
-			DescribePanel string   `json:"describePanel"`
-			PanelsID      []string `json:"panelsId"`
-			Width         string   `json:"width"`
-			Height        string   `json:"height"`
-			Dashboward    string   `json:"dashboward"`
+		Configs struct {
+			Grafana  grafana `json:"grafana"`
+			TextJson text    `json:"text"`
 		} `json:"configs"`
+		Instructions []struct {
+			Grafana  grafana `json:"grafana"`
+			TextJson text    `json:"text"`
+		} `json:"instructions"`
 	} `json:"projects"`
 }
 
@@ -70,10 +83,34 @@ func (conf *configFile) init() {
 	conf.TimeZone[4] = "Asia/Tbilisi"
 }
 
-// get info from Grafana
+//TODO default
+func getOrDefault(input interface{}, config interface{}) interface{} {
+	//fmt.Printf("value=%v type=%t\n", input, input)
+	switch input.(type) {
+	case string:
+		if input.(string) == "" {
+			if config.(string) != "" {
+				return config
+			}
+		}
+	case int:
+		if input.(int) == 0 {
+			if config.(int) != 0 {
+				return config
+			}
+		}
+	default:
+		if input == nil {
+			if config != nil {
+				return config
+			}
+		}
+	}
+	return input
+}
+
+// get info from grafana
 func getInfo(config configFile, web configWeb) {
-	// main var
-	var strArr []string
 	var filePath string
 	var strUrl string
 
@@ -103,58 +140,68 @@ func getInfo(config configFile, web configWeb) {
 			continue
 		}
 
-		// идем по всем дашбордам проектов
-		for _, conf := range project.Configs {
-			// разрезаем строку адресан а блоки для дальнейшей работы
-			// на входе вот такая строка http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy
-			// на выходе
-			// 1 http://127.0.0.1:3000
-			// 2 Gm189NKmz
-			// 3 new-dashboard-copy`
-			strArr = regexp.MustCompile(`(.+?)/d/(.+?)/([\d|\D]+)`).FindStringSubmatch(conf.Dashboward) // select item from row
+		// Load default values from configs field
+		configs := project.Configs
 
-			// создаем папку для графиков
-			filePath = fmt.Sprintf("imgs/%s/%s", project.Name, strArr[3])
-			createFolder(filePath)
+		// Handle every instruction
+		for _, instr := range project.Instructions {
+			// Check is there there instructions for grafana, then download images for every panelId
+			dash := instr.Grafana
+			if dash.PanelsID != nil {
+				// разрезаем строку адресан на блоки для дальнейшей работы
+				// на входе вот такая строка http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy
+				host := getOrDefault(dash.Hostname, configs.Grafana.Hostname).(string)
+				host = regexp.MustCompile(`(^.+//.+?)(/|$)`).FindStringSubmatch(host)[1]
+				reg := regexp.MustCompile(`(.*/|^)(.+?/.+?)(\?|$)`)
+				dashboard := getOrDefault(dash.Dashboard, configs.Grafana.Dashboard).(string)
+				dPath := reg.FindStringSubmatch(dashboard)
+				dashName := strings.Split(dPath[2], "/")[1]
 
-			// идем по всем графикам внтури дашбордов
-			for _, panelId := range conf.PanelsID {
+				// создаем папку для графиков
+				filePath = fmt.Sprintf("imgs/%s/%s", project.Name, dashName)
+				createFolder(filePath)
 
-				// http://127.0.0.1:3000/render/d-solo/Gm189NKmz/new-dashboard-copy?panelId=2&orgId=1&from=1532423409083&to=1532431126864&width=1000&height=500
-				strUrl = strArr[1] + "/render/d-solo/" + strArr[2] + "/" + strArr[3] + "?panelId=" + panelId + "&from=" + web.TimeFrom + "&to=" + web.TimeTo + "&tz=" + web.TimeZone
+				for _, panelId := range dash.PanelsID {
+					// http://127.0.0.1:3000/render/d-solo/Gm189NKmz/new-dashboard-copy?panelId=2&orgId=1&from=1532423409083&to=1532431126864&width=1000&height=500
+					strUrl = fmt.Sprintf("%s/render/d-solo/%s?panelId=%s&from=%s&to=%s&tz=%s", host, dPath[2], panelId, web.TimeFrom, web.TimeTo, web.TimeZone)
 
-				if (len(conf.Width) != 0) && (len(conf.Height) != 0) {
-					strUrl += "&width=" + conf.Width + "&height=" + conf.Height
-				} else {
-					// default size image
-					strUrl += "&width=1100&height=500"
+					Width := getOrDefault(dash.Width, configs.Grafana.Width).(int)
+					Height := getOrDefault(dash.Height, configs.Grafana.Height).(int)
+					if (Width != 0) && (Height != 0) {
+						strUrl += "&width=" + strconv.Itoa(Width) + "&height=" + strconv.Itoa(Height)
+					} else {
+						// default size image
+						strUrl += "&width=1100&height=500"
+					}
+
+					log.Printf("Downloading %s", strUrl) // Verify what url is used for request
+
+					req, err := http.NewRequest("GET", strUrl, nil)
+					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", project.Key))
+					resp, err := client.Do(req)
+					if err != nil {
+						log.Printf("Error open web, %s", err)
+						continue
+					}
+
+					body, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						log.Printf("Error read file, %s", err)
+						continue
+					}
+					resp.Body.Close()
+
+					// create image
+					fileHandle, _ := os.Create(filePath + "/" + panelId + ".png")
+					_, err = fileHandle.Write(body)
+					if err != nil {
+						log.Printf("Err write file, %s", err)
+						continue
+					}
+
+					fileHandle.Sync()
+					fileHandle.Close()
 				}
-
-				req, err := http.NewRequest("GET", strUrl, nil)
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", project.Key))
-				resp, err := client.Do(req)
-				if err != nil {
-					log.Printf("Error open web, %s", err)
-					continue
-				}
-
-				body, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					log.Printf("Error read file, %s", err)
-					continue
-				}
-				resp.Body.Close()
-
-				// create image
-				fileHandle, _ := os.Create(filePath + "/" + panelId + ".png")
-				_, err = fileHandle.Write(body)
-				if err != nil {
-					log.Printf("Err write file, %s", err)
-					continue
-				}
-
-				fileHandle.Sync()
-				fileHandle.Close()
 			}
 		}
 	}
@@ -163,7 +210,6 @@ func getInfo(config configFile, web configWeb) {
 // создаем док из картинок
 func createDoc(config configFile, web configWeb) string {
 
-	var strArr []string
 	var filePath string
 	counterImg := 1 // counter name photo
 
@@ -177,6 +223,9 @@ func createDoc(config configFile, web configWeb) string {
 		//создаем папку, где будем хранить наши отчётики
 		createFolder(fmt.Sprintf("reports/%s", project.Name))
 
+		// Load default values from configs field
+		configs := project.Configs
+
 		// прогружаем теплейт, если не получиться, то просто создаём новый
 		doc, err := document.OpenTemplate("template/template.docx")
 		if err != nil {
@@ -184,89 +233,74 @@ func createDoc(config configFile, web configWeb) string {
 			doc = document.New()
 		}
 
-		// идем по всем дашбордам проектов
-		for _, conf := range project.Configs {
-			// разрезаем строку адресан а блоки для дальнейшей работы
-			// на входе вот такая строка http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy
-			// на выходе
-			// 1 http://127.0.0.1:3000
-			// 2 Gm189NKmz
-			// 3 new-dashboard-copy`
-			strArr = regexp.MustCompile(`(.+?)/d/(.+?)/([\d|\D]+)`).FindStringSubmatch(conf.Dashboward) // select item from row
-			// идем по всем графикам внтури дашбордов
-
-			// добавляем параграф с описанием того что вставляем если там что-то есть
-			if len(conf.NameHeading) > 1 {
+		// Handle every instruction
+		for _, instr := range project.Instructions {
+			// Check is there instructions for text, add paragraph if true
+			text := instr.TextJson.Content
+			if text != "" {
+				style := instr.TextJson.Style
 				para := doc.AddParagraph()
-				para.SetStyle("Heading2")
+				para.SetStyle(style)
 				run := para.AddRun()
-				run.AddText(conf.NameHeading)
-				run.AddBreak() // перевод строки
+				run.AddText(text)
+				//run.AddField(document.)
 			}
 
-			for _, panelId := range conf.PanelsID {
+			// Check is there instructions for grafana, then add images and description to doc
+			dash := instr.Grafana
+			if dash.PanelsID != nil {
+				reg := regexp.MustCompile(`(.*/|^)(.+?/.+?)(\?|$)`)
+				dashboard := getOrDefault(dash.Dashboard, configs.Grafana.Dashboard)
+				dPath := reg.FindStringSubmatch(dashboard.(string))
 
-				// адрес картинки формируем
-				filePath = fmt.Sprintf("imgs/%s/%s/%s.png", project.Name, strArr[3], panelId)
+				for _, panelId := range dash.PanelsID {
+					// формируем адрес картинки
+					filePath = fmt.Sprintf("imgs/%s/%s/%s.png", project.Name, strings.Split(dPath[2], "/")[1], panelId)
 
-				// открытие картинки
-				img, err := common.ImageFromFile(filePath)
-				if err != nil {
-					log.Printf("Error doc1, unable to create image(%s): %s", err, filePath)
-					continue
-				}
+					// открытие картинки
+					img, err := common.ImageFromFile(filePath)
+					if err != nil {
+						log.Printf("Error doc1, unable to create image(%s): %s", err, filePath)
+						continue
+					}
 
-				// добавляем картинку, получаем ссылку на картинку
-				iref, err := doc.AddImage(img)
-				if err != nil {
-					log.Printf("Error doc2, unable to add image (%s) to document: %s", err, filePath)
-					continue
-				}
+					// добавляем картинку, получаем ссылку на картинку
+					iref, err := doc.AddImage(img)
+					if err != nil {
+						log.Printf("Error doc2, unable to add image (%s) to document: %s", err, filePath)
+						continue
+					}
 
-				// добавляем параграф с описанием
-				para := doc.AddParagraph()
-				para.SetStyle("TextAbout")
-				run := para.AddRun()
-				// run.Properties().SetFontFamily("Calibri")
-				// run.Properties().SetSize(11)
+					// добавляем параграф с названием картинки
+					para := doc.AddParagraph()
+					para.SetStyle(getOrDefault(dash.DescStyle, configs.Grafana.DescStyle).(string))
+					run := para.AddRun()
+					run.AddText(fmt.Sprintf("Рисунок "))
+					run.AddField(" SEQ Рисунок \\* ARABIC ")
+					run.AddText(fmt.Sprintf(". %s", getOrDefault(dash.Description, configs.Grafana.Description)))
 
-				run.AddText(conf.DescribePanel)
-				run.AddBreak()
-				run.AddBreak()
+					// добавляем параграф с фото
+					para = doc.AddParagraph()
 
-				// добавляем параграф с названием картинки
-				para = doc.AddParagraph()
-				para.SetStyle("Images")
-				run = para.AddRun()
-				// run.Properties().SetFontFamily("Calibri")
-				// run.Properties().SetSize(10)
-				// run.Properties().SetItalic(true)
-				run.AddText(fmt.Sprintf("Рисунок №%d. %s", counterImg, conf.NamePanelsID))
-				//run.AddField(document.)
+					imgInl, err := para.AddRun().AddDrawingInline(iref)
+					if err != nil {
+						log.Printf("Error doc3, unable to add inline image(%s): %s", err, filePath)
+						continue
+					}
 
-				// добавляем параграф с фото
-				para = doc.AddParagraph()
+					//Width, _ := strconv.ParseFloat(getOrDefault(dash.Width, configs.Grafana.Width).(string), 64)
+					//Height, _ := strconv.ParseFloat(getOrDefault(dash.Height, configs.Grafana.Height).(string), 64)
+					//
+					//Width /= 63.8
+					//Height /= 57.1
 
-				imgInl, err := para.AddRun().AddDrawingInline(iref)
-				if err != nil {
-					log.Fatalf("Error doc3, unable to add inline image(%s): %s", err, filePath)
-					continue
-				}
-
-				if (len(conf.Width) != 0) && (len(conf.Height) != 0) {
-					Width, _ := strconv.ParseFloat(conf.Width, 64)
-					Height, _ := strconv.ParseFloat(conf.Height, 64)
-
-					Width /= 63.8
-					Height /= 57.1
+					Width := 16
+					Height := 9
 
 					imgInl.SetSize(measurement.Centimeter*measurement.Distance(Width), measurement.Centimeter*measurement.Distance(Height))
 
-				} else {
-					// default size image
-					imgInl.SetSize(measurement.Centimeter*17.25, measurement.Centimeter*8.75)
+					counterImg++
 				}
-				counterImg++
 			}
 		}
 		reportLink = fmt.Sprintf("reports/%s/express-%d-%02d-%02d_%02d-%02d-%02d.docx", project.Name, time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), time.Now().Minute(), time.Now().Second())
@@ -284,7 +318,7 @@ func createFolder(name string) {
 
 func convertTime(times string, timeZone int64) string {
 	var timeStr string
-	strArr := regexp.MustCompile(`(\d+)/(\d+)/(\d+) (\d+):(\d+:\d+)`).FindStringSubmatch(times) // select item from row
+	strArr := regexp.MustCompile(`(\d+)[./-](\d+)[./-](\d+) (\d+):(\d+:\d+)`).FindStringSubmatch(times) // select item from row
 	// 1 month
 	// 2 day
 	// 3 years
@@ -320,11 +354,11 @@ func convertTime(times string, timeZone int64) string {
 //28/01/2018 16:30:05
 func upload(w http.ResponseWriter, r *http.Request) {
 
-	// delete folder with file
-	err := os.RemoveAll("imgs")
-	if err != nil {
-		log.Printf("Error delete folder %s", err)
-	}
+	// delete folder with file TODO debug
+	//err := os.RemoveAll("imgs")
+	//if err != nil {
+	//	log.Printf("Error delete folder %s", err)
+	//}
 
 	// Config program
 	configurationFile := configFile{}
@@ -332,7 +366,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "GET" {
 		// текущее время
-		configurationFile.Times = fmt.Sprintf(time.Now().Format("02/01/2006 15:04:05"))
+		configurationFile.Times = fmt.Sprintf(time.Now().Format("02-01-2006 15:04:05"))
 		t, _ := template.ParseFiles("template/upload.gtpl")
 		t.Execute(w, configurationFile)
 	} else {

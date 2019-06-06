@@ -1,38 +1,50 @@
 {
   "projects": [
     {
-      "name": "S",
-      "key": "eyJrIjoiSGE0TWxOTlpQcWdWRHJBQ0FBbjQxVkdaS2FOTzlzR0oiLCJuIjoidGVzdCIsImlkIjoxfQ==",
-      "configs": [
+      "name": "Sample",
+      "key": "eyJrIjoiVGtzR2tQY3p1cnNrc2U5V2g3amg3ZkhLeWtRY3JCT04iLCJuIjoibmV3IiwiaWQiOjF9",
+      "configs": {
+        "grafana": {
+          "hostname": "http://127.0.0.1:3000",
+          "dashboard": "XZsIP9qik/test",
+          "width": 1000,
+          "height": 500,
+          "descStyle": "ad"
+        }
+      },
+      "instructions": [
         {
-          "nameHeading" : "графики",
-          "namePanelsId": "idle time",
-          "describePanel": "grrsdfsdfklklewrhkldfkdfkjldjklsdjklsdf",
-          "panelsId": [
-            "1"
-          ],
-          "width": "10",
-          "height": "101",
-          "dashboward": "http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy"
+          "text": {
+            "content": "Header 1",
+            "style": "10"
+          },
+          "grafana": {
+            "panelsId": [
+              "2"
+            ],
+            "description": "CPU"
+          }
         },
         {
-          "nameHeading" : "графики",
-          "namePanelsId": "time",
-          "describePanel": "grrsdfsdfklklewrhkldfkdfkjldjklsdjklsdf",
-          "panelsId": [
-            "2",
-            "3"
-          ],
-          "width": "",
-          "height": "",
-          "dashboward": "http://127.0.0.1:3000/d/Gm189NKmz/new-dashboard-copy"
+          "text": {
+            "content": "Header 2",
+            "style": "10"
+          }
+        },
+        {
+          "grafana": {
+            "panelsId": [
+              "3"
+            ],
+            "description": "MEM"
+          }
         }
       ]
     },
     {
       "name": "P",
       "key": "eyJrIjoiSGE0TWxOTlpQcWdWRHJBQ0FBbjQxVkdaS2FOTzlzR0oiLCJuIjoidGVzdCIsImlkIjoxfQ==",
-      "configs": [
+      "instructions": [
         {
           "nameHeading" : "графики",
           "namePanelsId": "idle time",
@@ -40,9 +52,9 @@
           "panelsId": [
             "5"
           ],
-          "width": "3",
-          "height": "3",
-          "dashboward": "https://play.grafana.org/d/000000012/grafana-play-home"
+          "width": 3,
+          "height": 3,
+          "dashboard": "https://play.grafana.org/d/000000012/grafana-play-home"
         },
         {
           "nameHeading" : "графики",
@@ -52,7 +64,7 @@
             "40",
             "60"
           ],
-          "dashboward": "https://play.grafana.org/d/000000012/grafana-play-home"
+          "dashboard": "https://play.grafana.org/d/000000012/grafana-play-home"
         }
       ]
     }

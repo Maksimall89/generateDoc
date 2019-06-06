@@ -25,12 +25,12 @@
 
    		<label>Start time:</label>
    		<br />
-   		<input type="text" name="timeFrom" value="{{ .Times}}"  pattern="\d+/\d+/\d+ \d+:\d+:\d+" required tabindex="3">
+   		<input type="text" name="timeFrom" value="{{ .Times}}"  pattern="\d+[./-]\d+[./-]\d+ \d+:\d+:\d+" required tabindex="3">
    		<br />
 
         <label>Stop time:</label>
         <br />
-        <input type="text" name="timeTo" value="{{ .Times}}"  pattern="\d+/\d+/\d+ \d+:\d+:\d+" required tabindex="4">
+        <input type="text" name="timeTo" value="{{ .Times}}"  pattern="\d+[./-]\d+[./-]\d+ \d+:\d+:\d+" required tabindex="4">
         <br />
 
         <br />
