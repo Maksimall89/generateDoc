@@ -20,51 +20,12 @@ import (
 	"time"
 )
 
-type grafana struct {
-	PanelsID    []string `json:"panelsId"`              //Required field, panel id as int
-	Hostname    string   `json:"hostname,omitempty"`    //Optional field if assigned at configs, example "http://127.0.0.1:3000"
-	Dashboard   string   `json:"dashboard,omitempty"`   //Optional field if assigned at configs, path to dashboard, example "/d/XZsIP9qik/test"
-	Width       int      `json:"width,omitempty"`       //Optional field if assigned at configs
-	Height      int      `json:"height,omitempty"`      //Optional field if assigned at configs
-	Description string   `json:"description,omitempty"` //Optional field if assigned at configs
-	DescStyle   string   `json:"descStyle,omitempty"`   //Optional field if assigned at configs
-}
-
-type text struct {
-	Content string `json:"content"`         //Required field
-	Style   string `json:"style,omitempty"` //Optional field if assigned at configs
-}
-
-type configFile struct {
-	Times    string
-	TimeZone [5]string
-	Projects []struct {
-		Name    string `json:"name"`
-		Key     string `json:"key"`
-		Configs struct {
-			Grafana  grafana `json:"grafana"`
-			TextJson text    `json:"text"`
-		} `json:"configs"`
-		Instructions []struct {
-			Grafana  grafana `json:"grafana"`
-			TextJson text    `json:"text"`
-		} `json:"instructions"`
-	} `json:"projects"`
-}
-
-type configWeb struct {
-	TimeTo   string
-	TimeFrom string
-	Project  string
-	TimeZone string
-}
-
 var reportLink string
 
 // Init config program
-func (conf *configFile) init() {
+func (conf *ConfigFile) init(path string) {
 
-	fileConfig, err := os.Open("tsconfig.json")
+	fileConfig, err := os.Open(path)
 	if err != nil {
 		log.Println(err)
 	}
@@ -110,7 +71,7 @@ func getOrDefault(input interface{}, config interface{}) interface{} {
 }
 
 // get info from grafana
-func getInfo(config configFile, web configWeb) {
+func getInfo(config ConfigFile, web ConfigWeb) {
 	var filePath string
 	var strUrl string
 
@@ -177,6 +138,10 @@ func getInfo(config configFile, web configWeb) {
 					log.Printf("Downloading %s", strUrl) // Verify what url is used for request
 
 					req, err := http.NewRequest("GET", strUrl, nil)
+					if err != nil {
+						log.Printf("Error open welcome web, %s", err)
+						continue
+					}
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", project.Key))
 					resp, err := client.Do(req)
 					if err != nil {
@@ -208,7 +173,7 @@ func getInfo(config configFile, web configWeb) {
 }
 
 // создаем док из картинок
-func createDoc(config configFile, web configWeb) string {
+func createDoc(config ConfigFile, web ConfigWeb) string {
 
 	var filePath string
 	counterImg := 1 // counter name photo
@@ -361,8 +326,8 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	//}
 
 	// Config program
-	configurationFile := configFile{}
-	configurationFile.init()
+	configurationFile := ConfigFile{}
+	configurationFile.init("tsconfig.json")
 
 	if r.Method == "GET" {
 		// текущее время
@@ -370,7 +335,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		t, _ := template.ParseFiles("template/upload.gtpl")
 		t.Execute(w, configurationFile)
 	} else {
-		configurationWeb := configWeb{r.FormValue("timeTo"), r.FormValue("timeFrom"), r.FormValue("project"), r.FormValue("timezone")}
+		configurationWeb := ConfigWeb{r.FormValue("timeTo"), r.FormValue("timeFrom"), r.FormValue("project"), r.FormValue("timezone")}
 		// real work
 		getInfo(configurationFile, configurationWeb)
 		// collate img
